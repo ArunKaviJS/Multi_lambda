@@ -1,0 +1,58 @@
+name: Deploy Lambda 2 (page-processor)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "lambda_2/**"
+      - ".github/workflows/deploy-lambda-2.yml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+  S3_BUCKET: bodhi-multi-lambda
+  LAMBDA_NAME: Bodhi_lambda_2_multilambda
+  SRC_DIR: lambda_2
+  S3_KEY: lambda_2/lambda.zip
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build package (code + dependencies)
+        run: |
+          mkdir build
+          pip install -r $SRC_DIR/requirements.txt -t build \
+            --platform manylinux2014_x86_64 --implementation cp \
+            --python-version 3.12 --only-binary=:all: --upgrade
+          cp $SRC_DIR/*.py build/
+          cd build
+          zip -r ../lambda.zip . -x "*__pycache__*" "*.pyc"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload zip to S3
+        run: aws s3 cp lambda.zip s3://$S3_BUCKET/$S3_KEY
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name $LAMBDA_NAME \
+            --s3-bucket $S3_BUCKET \
+            --s3-key $S3_KEY
+          aws lambda wait function-updated --function-name $LAMBDA_NAME
