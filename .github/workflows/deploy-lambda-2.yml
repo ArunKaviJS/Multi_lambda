@@ -9,6 +9,7 @@ on:
       - ".github/workflows/deploy-lambda-2.yml"
   workflow_dispatch:
 
+    
 env:
   AWS_REGION: ap-south-1
   S3_BUCKET: bodhi-multi-lambda
